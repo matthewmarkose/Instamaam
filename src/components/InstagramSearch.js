@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import './InstagramSearch.css';
 
 const InstagramSearch = () => {
-    const [username, setUsername] = useState('saragallego4v');
+    const navigate = useNavigate();
+    const { username: urlUsername } = useParams();
+    const [username, setUsername] = useState(urlUsername || 'saragallego4v');
     const [profileData, setProfileData] = useState(null);
     const [error, setError] = useState('');
     const [timelineMedia, setTimelineMedia] = useState([]);
@@ -12,10 +15,12 @@ const InstagramSearch = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [showFullProfilePic, setShowFullProfilePic] = useState(false);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    const [currentCarouselIndex, setCurrentCarouselIndex] = useState(0);
     const [isDarkMode, setIsDarkMode] = useState(false);
     const loadingRef = useRef(false);
     const thumbnailsContainerRef = useRef(null);
     const scrollTimeoutRef = useRef(null);
+    const initialLoadRef = useRef(false);
 
     useEffect(() => {
         // Check system preference for dark mode
@@ -27,6 +32,92 @@ const InstagramSearch = () => {
         darkModeMediaQuery.addEventListener('change', handleChange);
         return () => darkModeMediaQuery.removeEventListener('change', handleChange);
     }, []);
+
+    // Effect to handle URL username changes
+    useEffect(() => {
+        if (urlUsername) {
+            if (!initialLoadRef.current) {
+                // First load with URL username
+                initialLoadRef.current = true;
+                handleSearch(urlUsername);
+            } else if (urlUsername !== username) {
+                // URL changed after initial load
+                setUsername(urlUsername);
+                handleSearch(urlUsername);
+            }
+        }
+    }, [urlUsername]);
+
+    const getCurrentMediaUrl = useCallback(() => {
+        if (!timelineMedia[currentImageIndex]) return null;
+        
+        const currentMedia = timelineMedia[currentImageIndex];
+        if (currentMedia.node.edge_sidecar_to_children?.edges) {
+            const carouselItem = currentMedia.node.edge_sidecar_to_children.edges[currentCarouselIndex]?.node;
+            return {
+                url: carouselItem.display_url,
+                isVideo: carouselItem.is_video,
+                videoUrl: carouselItem.video_url
+            };
+        }
+        return {
+            url: currentMedia.node.display_url,
+            isVideo: currentMedia.node.is_video,
+            videoUrl: currentMedia.node.video_url
+        };
+    }, [currentImageIndex, currentCarouselIndex, timelineMedia]);
+
+    const handleKeyDown = useCallback((e) => {
+        if (!timelineMedia.length) return;
+
+        const currentMedia = timelineMedia[currentImageIndex];
+        const hasCarousel = currentMedia.node.edge_sidecar_to_children?.edges;
+        const carouselLength = hasCarousel ? currentMedia.node.edge_sidecar_to_children.edges.length : 1;
+
+        switch (e.key) {
+            case 'ArrowLeft':
+                if (currentCarouselIndex > 0) {
+                    setCurrentCarouselIndex(prev => prev - 1);
+                } else if (currentImageIndex > 0) {
+                    setCurrentImageIndex(prev => prev - 1);
+                    setCurrentCarouselIndex(0);
+                }
+                break;
+            case 'ArrowRight':
+                if (currentCarouselIndex < carouselLength - 1) {
+                    setCurrentCarouselIndex(prev => prev + 1);
+                } else if (currentImageIndex < timelineMedia.length - 1) {
+                    setCurrentImageIndex(prev => prev + 1);
+                    setCurrentCarouselIndex(0);
+                    if (currentImageIndex >= timelineMedia.length - 2 && hasNextPage && !loadingRef.current) {
+                        fetchMoreMedia();
+                    }
+                }
+                break;
+            case 'ArrowDown':
+                if (currentImageIndex < timelineMedia.length - 1) {
+                    setCurrentImageIndex(prev => prev + 1);
+                    setCurrentCarouselIndex(0);
+                    if (currentImageIndex >= timelineMedia.length - 2 && hasNextPage && !loadingRef.current) {
+                        fetchMoreMedia();
+                    }
+                }
+                break;
+            case 'ArrowUp':
+                if (currentImageIndex > 0) {
+                    setCurrentImageIndex(prev => prev - 1);
+                    setCurrentCarouselIndex(0);
+                }
+                break;
+            default:
+                break;
+        }
+    }, [currentImageIndex, currentCarouselIndex, timelineMedia, hasNextPage]);
+
+    useEffect(() => {
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [handleKeyDown]);
 
     const fetchMoreMedia = useCallback(async () => {
         if (!hasNextPage || !endCursor || !userId || loadingRef.current) return;
@@ -49,11 +140,8 @@ const InstagramSearch = () => {
             }
             
             const data = await response.json();
-            console.log('Media response:', data); // Debug log
             
-            // Check if we have valid data
             if (!data?.data?.user?.edge_owner_to_timeline_media?.edges) {
-                console.error('Invalid response structure:', data); // Debug log
                 throw new Error('Invalid response data structure');
             }
 
@@ -65,12 +153,10 @@ const InstagramSearch = () => {
                 setHasNextPage(newPageInfo.has_next_page);
                 setEndCursor(newPageInfo.end_cursor);
             } else {
-                // If no new edges, we've reached the end
                 setHasNextPage(false);
             }
         } catch (err) {
             console.error('Error fetching more media:', err);
-            // Reset loading state on error
             setHasNextPage(false);
         } finally {
             setIsLoading(false);
@@ -107,46 +193,18 @@ const InstagramSearch = () => {
         };
     }, []);
 
-    const handleKeyDown = useCallback((e) => {
-        if (!timelineMedia.length) return;
-
-        switch (e.key) {
-            case 'ArrowLeft':
-                setCurrentImageIndex(prev => (prev > 0 ? prev - 1 : prev));
-                break;
-            case 'ArrowRight':
-                setCurrentImageIndex(prev => {
-                    const newIndex = prev + 1;
-                    // Load more images if we're at the last image
-                    if (newIndex >= timelineMedia.length - 1 && hasNextPage && !loadingRef.current) {
-                        fetchMoreMedia();
-                    }
-                    return newIndex < timelineMedia.length ? newIndex : prev;
-                });
-                break;
-            default:
-                break;
-        }
-    }, [timelineMedia.length, hasNextPage, fetchMoreMedia]);
-
-    useEffect(() => {
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [handleKeyDown]);
-
-    const handleSearch = async () => {
-        if (!username) return;
+    const handleSearch = async (searchUsername = username) => {
+        if (!searchUsername) return;
         
-        // Validate username format
         const usernameRegex = /^[a-zA-Z0-9._]+$/;
-        if (!usernameRegex.test(username)) {
+        if (!usernameRegex.test(searchUsername)) {
             setError('Username can only contain letters, numbers, underscores, and periods');
             return;
         }
 
         try {
             const response = await fetch(
-                `http://localhost:3001/api/instagram-profile/${username}`
+                `http://localhost:3001/api/instagram-profile/${searchUsername}`
             );
             
             if (!response.ok) {
@@ -162,6 +220,9 @@ const InstagramSearch = () => {
                 setHasNextPage(data.data.user.edge_owner_to_timeline_media.page_info.has_next_page);
                 setEndCursor(data.data.user.edge_owner_to_timeline_media.page_info.end_cursor);
                 setCurrentImageIndex(0);
+                setCurrentCarouselIndex(0);
+                // Update URL with the searched username
+                navigate(`/${searchUsername}`);
             }
             setError('');
         } catch (err) {
@@ -198,118 +259,144 @@ const InstagramSearch = () => {
                     onKeyPress={handleKeyPress}
                     maxLength={30}
                 />
+                {profileData && (
+                    <div 
+                        className="profile-icon"
+                        onMouseEnter={() => setShowFullProfilePic(true)}
+                        onMouseLeave={() => setShowFullProfilePic(false)}
+                    >
+                        <img 
+                            src={getProxiedImageUrl(profileData.profile_pic_url_hd)} 
+                            alt="Profile"
+                            onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src = 'https://via.placeholder.com/200?text=No+Image';
+                            }}
+                        />
+                        {showFullProfilePic && (
+                            <div className="full-profile-pic">
+                                <img 
+                                    src={getProxiedImageUrl(profileData.profile_pic_url_hd)} 
+                                    alt="Full Profile"
+                                    onError={(e) => {
+                                        e.target.onerror = null;
+                                        e.target.src = 'https://via.placeholder.com/400?text=No+Image';
+                                    }}
+                                />
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {error && <div className="error-message">{error}</div>}
 
-            {profileData && (
-                <>
-                    <div className="profile-container">
+            {timelineMedia.length > 0 && (
+                <div className="timeline-media">
+                    <div className="media-container">
                         <div 
-                            className="profile-image"
-                            onMouseEnter={() => setShowFullProfilePic(true)}
-                            onMouseLeave={() => setShowFullProfilePic(false)}
+                            ref={thumbnailsContainerRef}
+                            className="thumbnails-container"
+                            onScroll={handleThumbnailsScroll}
                         >
-                            <img 
-                                src={getProxiedImageUrl(profileData.profile_pic_url_hd)} 
-                                alt="Profile"
-                                onError={(e) => {
-                                    e.target.onerror = null;
-                                    e.target.src = 'https://via.placeholder.com/200?text=No+Image';
-                                }}
-                            />
-                            {showFullProfilePic && (
-                                <div className="full-profile-pic">
-                                    <img 
-                                        src={getProxiedImageUrl(profileData.profile_pic_url_hd)} 
-                                        alt="Full Profile"
-                                        onError={(e) => {
-                                            e.target.onerror = null;
-                                            e.target.src = 'https://via.placeholder.com/400?text=No+Image';
+                            <div className="thumbnails-wrapper">
+                                {timelineMedia.map((edge, index) => (
+                                    <div 
+                                        key={edge.node.id || index} 
+                                        className={`thumbnail ${index === currentImageIndex ? 'active' : ''}`}
+                                        onClick={() => {
+                                            setCurrentImageIndex(index);
+                                            setCurrentCarouselIndex(0);
                                         }}
-                                    />
+                                    >
+                                        <img
+                                            src={getProxiedImageUrl(edge.node.display_url)}
+                                            alt={`Thumbnail ${index + 1}`}
+                                            onError={(e) => {
+                                                e.target.onerror = null;
+                                                e.target.src = 'https://via.placeholder.com/200?text=No+Image';
+                                            }}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                            {isLoading && (
+                                <div className="loading-indicator">
+                                    Loading more...
                                 </div>
                             )}
                         </div>
-                        <div className="profile-info">
-                            <h1 className="full-name">{profileData.full_name}</h1>
-                            <p className="username">@{profileData.username}</p>
-                            <p className="biography">{profileData.biography}</p>
-                        </div>
-                    </div>
-
-                    {timelineMedia.length > 0 && (
-                        <div className="timeline-media">
-                            <div className="media-container">
-                                <div 
-                                    ref={thumbnailsContainerRef}
-                                    className="thumbnails-container"
-                                    onScroll={handleThumbnailsScroll}
+                        <div className="main-image-container">
+                            {getCurrentMediaUrl()?.isVideo ? (
+                                <video
+                                    src={getProxiedImageUrl(getCurrentMediaUrl().videoUrl)}
+                                    className="main-image"
+                                    autoPlay
+                                    loop
+                                    playsInline
+                                    onError={(e) => {
+                                        e.target.onerror = null;
+                                        e.target.src = 'https://via.placeholder.com/800x800?text=Video+Error';
+                                    }}
+                                />
+                            ) : (
+                                <img
+                                    src={getProxiedImageUrl(getCurrentMediaUrl().url)}
+                                    alt={`Post ${currentImageIndex + 1}`}
+                                    className="main-image"
+                                    onError={(e) => {
+                                        e.target.onerror = null;
+                                        e.target.src = 'https://via.placeholder.com/800x800?text=No+Image';
+                                    }}
+                                />
+                            )}
+                            <div className="image-navigation">
+                                <button 
+                                    className="nav-button prev"
+                                    onClick={() => {
+                                        if (currentCarouselIndex > 0) {
+                                            setCurrentCarouselIndex(prev => prev - 1);
+                                        } else if (currentImageIndex > 0) {
+                                            setCurrentImageIndex(prev => prev - 1);
+                                            setCurrentCarouselIndex(0);
+                                        }
+                                    }}
+                                    disabled={currentImageIndex === 0 && currentCarouselIndex === 0}
                                 >
-                                    <div className="thumbnails-wrapper">
-                                        {timelineMedia.map((edge, index) => (
-                                            <div 
-                                                key={edge.node.id || index} 
-                                                className={`thumbnail ${index === currentImageIndex ? 'active' : ''}`}
-                                                onClick={() => setCurrentImageIndex(index)}
-                                            >
-                                                <img
-                                                    src={getProxiedImageUrl(edge.node.display_url)}
-                                                    alt={`Thumbnail ${index + 1}`}
-                                                    onError={(e) => {
-                                                        e.target.onerror = null;
-                                                        e.target.src = 'https://via.placeholder.com/200?text=No+Image';
-                                                    }}
-                                                />
-                                            </div>
-                                        ))}
-                                    </div>
-                                    {isLoading && (
-                                        <div className="loading-indicator">
-                                            Loading more...
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="main-image-container">
-                                    <img
-                                        src={getProxiedImageUrl(timelineMedia[currentImageIndex].node.display_url)}
-                                        alt={`Post ${currentImageIndex + 1}`}
-                                        className="main-image"
-                                        onError={(e) => {
-                                            e.target.onerror = null;
-                                            e.target.src = 'https://via.placeholder.com/800x800?text=No+Image';
-                                        }}
-                                    />
-                                    <div className="image-navigation">
-                                        <button 
-                                            className="nav-button prev"
-                                            onClick={() => setCurrentImageIndex(prev => Math.max(0, prev - 1))}
-                                            disabled={currentImageIndex === 0}
-                                        >
-                                            ←
-                                        </button>
-                                        <span className="image-counter">
-                                            {currentImageIndex + 1} / {timelineMedia.length}
-                                        </span>
-                                        <button 
-                                            className="nav-button next"
-                                            onClick={() => {
-                                                const newIndex = currentImageIndex + 1;
-                                                if (newIndex >= timelineMedia.length - 1 && hasNextPage && !loadingRef.current) {
-                                                    fetchMoreMedia();
-                                                }
-                                                setCurrentImageIndex(prev => Math.min(timelineMedia.length - 1, prev + 1));
-                                            }}
-                                            disabled={currentImageIndex === timelineMedia.length - 1}
-                                        >
-                                            →
-                                        </button>
-                                    </div>
-                                </div>
+                                    ←
+                                </button>
+                                <span className="image-counter">
+                                    {currentImageIndex + 1} / {timelineMedia.length}
+                                    {timelineMedia[currentImageIndex]?.node.edge_sidecar_to_children?.edges && 
+                                        ` (${currentCarouselIndex + 1}/${timelineMedia[currentImageIndex].node.edge_sidecar_to_children.edges.length})`
+                                    }
+                                </span>
+                                <button 
+                                    className="nav-button next"
+                                    onClick={() => {
+                                        const currentMedia = timelineMedia[currentImageIndex];
+                                        const hasCarousel = currentMedia.node.edge_sidecar_to_children?.edges;
+                                        const carouselLength = hasCarousel ? currentMedia.node.edge_sidecar_to_children.edges.length : 1;
+
+                                        if (currentCarouselIndex < carouselLength - 1) {
+                                            setCurrentCarouselIndex(prev => prev + 1);
+                                        } else if (currentImageIndex < timelineMedia.length - 1) {
+                                            setCurrentImageIndex(prev => prev + 1);
+                                            setCurrentCarouselIndex(0);
+                                            if (currentImageIndex >= timelineMedia.length - 2 && hasNextPage && !loadingRef.current) {
+                                                fetchMoreMedia();
+                                            }
+                                        }
+                                    }}
+                                    disabled={currentImageIndex === timelineMedia.length - 1 && 
+                                        currentCarouselIndex === (timelineMedia[currentImageIndex]?.node.edge_sidecar_to_children?.edges?.length - 1 || 0)}
+                                >
+                                    →
+                                </button>
                             </div>
                         </div>
-                    )}
-                </>
+                    </div>
+                </div>
             )}
         </div>
     );
