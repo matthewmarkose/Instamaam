@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import './InstagramSearch.css';
 
-const InstagramSearch = () => {
+const InstagramSearch = ({ initialSearch = true }) => {
     const navigate = useNavigate();
     const { username: urlUsername } = useParams();
     const [username, setUsername] = useState(urlUsername || 'saragallego4v');
@@ -35,7 +35,7 @@ const InstagramSearch = () => {
 
     // Effect to handle URL username changes
     useEffect(() => {
-        if (urlUsername) {
+        if (urlUsername && initialSearch) {
             if (!initialLoadRef.current) {
                 // First load with URL username
                 initialLoadRef.current = true;
@@ -46,7 +46,7 @@ const InstagramSearch = () => {
                 handleSearch(urlUsername);
             }
         }
-    }, [urlUsername]);
+    }, [urlUsername, initialSearch]);
 
     const getCurrentMediaUrl = useCallback(() => {
         if (!timelineMedia[currentImageIndex]) return null;

@@ -1,15 +1,15 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
 import InstagramSearch from './components/InstagramSearch';
 
 function App() {
   return (
-    <Router>
+    <Router basename="/Instamaam">
       <div className="App">
         <Routes>
-          <Route path="/" element={<InstagramSearch />} />
-          <Route path="/:username" element={<InstagramSearch />} />
+          <Route path="/" element={<InstagramSearch initialSearch={false} />} />
+          <Route path="/:username" element={<InstagramSearch initialSearch={true} />} />
         </Routes>
       </div>
     </Router>

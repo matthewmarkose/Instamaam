@@ -1,28 +1,24 @@
-# Use Node.js LTS version (recommended for stability)
-FROM node:20-alpine AS build
+# Build stage
+FROM node:22-alpine AS builder
 
-# Create app directory
 WORKDIR /app
 
-# Copy package.json and package-lock.json first to leverage Docker cache
-# This layer only changes if dependencies change
+# Copy package files
 COPY package*.json ./
 
-# Install production dependencies only (for smaller image size)
-RUN npm ci --only=production
+# Install dependencies with production flag
+RUN npm install --omit=dev
 
-# Copy the rest of the application code
-COPY . .
-
-# --- Start of a new stage for the final, lean image ---
-FROM node:20-alpine AS final
+# Runtime stage
+FROM node:22-alpine
 
 WORKDIR /app
 
-# Copy only the necessary files from the build stage
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/package*.json ./
-COPY --from=build /app/server.js ./
+# Copy only production dependencies from builder
+COPY --from=builder /app/node_modules ./node_modules
+
+# Copy only necessary server files
+COPY server.js ./
 
 # Expose the port the server runs on
 EXPOSE 3001
@@ -31,4 +27,4 @@ EXPOSE 3001
 ENV NODE_ENV=production
 
 # Command to run the server
-CMD ["node", "server.js"]
+CMD ["node", "server.js"] 
