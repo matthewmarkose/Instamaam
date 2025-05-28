@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.css": "/instamaam/static/css/main.1d455d09.css",
+    "main.js": "/instamaam/static/js/main.8ea6191b.js",
+    "static/js/453.c8e6976d.chunk.js": "/instamaam/static/js/453.c8e6976d.chunk.js",
+    "index.html": "/instamaam/index.html",
+    "main.1d455d09.css.map": "/instamaam/static/css/main.1d455d09.css.map",
+    "main.8ea6191b.js.map": "/instamaam/static/js/main.8ea6191b.js.map",
+    "453.c8e6976d.chunk.js.map": "/instamaam/static/js/453.c8e6976d.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.1d455d09.css",
+    "static/js/main.8ea6191b.js"
+  ]
+}
