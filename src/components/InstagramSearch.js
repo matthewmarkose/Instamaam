@@ -2,10 +2,10 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import './InstagramSearch.css';
 
-const InstagramSearch = ({ initialSearch = true }) => {
+const InstagramSearch = () => {
     const navigate = useNavigate();
     const { username: urlUsername } = useParams();
-    const [username, setUsername] = useState(urlUsername || 'saragallego4v');
+    const [username, setUsername] = useState(urlUsername || '');
     const [profileData, setProfileData] = useState(null);
     const [error, setError] = useState('');
     const [timelineMedia, setTimelineMedia] = useState([]);
@@ -22,7 +22,6 @@ const InstagramSearch = ({ initialSearch = true }) => {
     const loadingRef = useRef(false);
     const thumbnailsContainerRef = useRef(null);
     const scrollTimeoutRef = useRef(null);
-    const initialLoadRef = useRef(false);
 
     useEffect(() => {
         // Check system preference for dark mode
@@ -35,20 +34,52 @@ const InstagramSearch = ({ initialSearch = true }) => {
         return () => darkModeMediaQuery.removeEventListener('change', handleChange);
     }, []);
 
+    const fetchProfileData = async (searchUsername) => {
+        setIsSearching(true);
+        setError('');
+        try {
+            const response = await fetch(
+                `http://localhost:3001/api/instagram-profile/${searchUsername}`
+            );
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch profile data');
+            }
+            
+            const data = await response.json();
+            
+            if (data.data?.user) {
+                setProfileData(data.data.user);
+                setUserId(data.data.user.id);
+                setTimelineMedia(data.data.user.edge_owner_to_timeline_media.edges);
+                setHasNextPage(data.data.user.edge_owner_to_timeline_media.page_info.has_next_page);
+                setEndCursor(data.data.user.edge_owner_to_timeline_media.page_info.end_cursor);
+                setCurrentImageIndex(0);
+                setCurrentCarouselIndex(0);
+            }
+            setError('');
+        } catch (err) {
+            setError('Error fetching profile data');
+            console.error(err);
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
     // Effect to handle URL username changes
     useEffect(() => {
-        if (urlUsername && initialSearch) {
-            if (!initialLoadRef.current) {
-                // First load with URL username
-                initialLoadRef.current = true;
-                handleSearch(urlUsername);
-            } else if (urlUsername !== username) {
-                // URL changed after initial load
-                setUsername(urlUsername);
-                handleSearch(urlUsername);
-            }
+        if (urlUsername) {
+            setUsername(urlUsername);
+            fetchProfileData(urlUsername);
+        } else {
+            // Clear data when no username in URL
+            setProfileData(null);
+            setTimelineMedia([]);
+            setError('');
+            setCurrentImageIndex(0);
+            setCurrentCarouselIndex(0);
         }
-    }, [urlUsername, initialSearch]);
+    }, [urlUsername]);
 
     const getCurrentMediaUrl = useCallback(() => {
         if (!timelineMedia[currentImageIndex]) return null;
@@ -204,37 +235,8 @@ const InstagramSearch = ({ initialSearch = true }) => {
             return;
         }
 
-        setIsSearching(true);
-        setError('');
-        try {
-            const response = await fetch(
-                `http://localhost:3001/api/instagram-profile/${searchUsername}`
-            );
-            
-            if (!response.ok) {
-                throw new Error('Failed to fetch profile data');
-            }
-            
-            const data = await response.json();
-            
-            if (data.data?.user) {
-                setProfileData(data.data.user);
-                setUserId(data.data.user.id);
-                setTimelineMedia(data.data.user.edge_owner_to_timeline_media.edges);
-                setHasNextPage(data.data.user.edge_owner_to_timeline_media.page_info.has_next_page);
-                setEndCursor(data.data.user.edge_owner_to_timeline_media.page_info.end_cursor);
-                setCurrentImageIndex(0);
-                setCurrentCarouselIndex(0);
-                // Update URL with the searched username
-                navigate(`/${searchUsername}`);
-            }
-            setError('');
-        } catch (err) {
-            setError('Error fetching profile data');
-            console.error(err);
-        } finally {
-            setIsSearching(false);
-        }
+        // Update URL first
+        navigate(`/${searchUsername}`);
     };
 
     const handleKeyPress = (e) => {
@@ -356,7 +358,7 @@ const InstagramSearch = ({ initialSearch = true }) => {
                                     autoPlay
                                     loop
                                     playsInline
-                                    onLoadedData={index === 0 ? handleFirstImageLoad : undefined}
+                                    onLoadedData={currentImageIndex === 0 ? handleFirstImageLoad : undefined}
                                     onError={(e) => {
                                         e.target.onerror = null;
                                         e.target.src = 'https://via.placeholder.com/800x800?text=Video+Error';
