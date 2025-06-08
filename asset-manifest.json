@@ -1,15 +1,15 @@
 {
   "files": {
-    "main.css": "/Instamaam/static/css/main.1d455d09.css",
-    "main.js": "/Instamaam/static/js/main.a3d97c9f.js",
+    "main.css": "/Instamaam/static/css/main.88018be6.css",
+    "main.js": "/Instamaam/static/js/main.26caabef.js",
     "static/js/453.c8e6976d.chunk.js": "/Instamaam/static/js/453.c8e6976d.chunk.js",
     "index.html": "/Instamaam/index.html",
-    "main.1d455d09.css.map": "/Instamaam/static/css/main.1d455d09.css.map",
-    "main.a3d97c9f.js.map": "/Instamaam/static/js/main.a3d97c9f.js.map",
+    "main.88018be6.css.map": "/Instamaam/static/css/main.88018be6.css.map",
+    "main.26caabef.js.map": "/Instamaam/static/js/main.26caabef.js.map",
     "453.c8e6976d.chunk.js.map": "/Instamaam/static/js/453.c8e6976d.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.1d455d09.css",
-    "static/js/main.a3d97c9f.js"
+    "static/css/main.88018be6.css",
+    "static/js/main.26caabef.js"
   ]
 }
