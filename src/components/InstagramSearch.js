@@ -13,10 +13,12 @@ const InstagramSearch = ({ initialSearch = true }) => {
     const [endCursor, setEndCursor] = useState(null);
     const [userId, setUserId] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [isSearching, setIsSearching] = useState(false);
     const [showFullProfilePic, setShowFullProfilePic] = useState(false);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [currentCarouselIndex, setCurrentCarouselIndex] = useState(0);
     const [isDarkMode, setIsDarkMode] = useState(false);
+    const [firstImageLoaded, setFirstImageLoaded] = useState(false);
     const loadingRef = useRef(false);
     const thumbnailsContainerRef = useRef(null);
     const scrollTimeoutRef = useRef(null);
@@ -202,6 +204,8 @@ const InstagramSearch = ({ initialSearch = true }) => {
             return;
         }
 
+        setIsSearching(true);
+        setError('');
         try {
             const response = await fetch(
                 `http://localhost:3001/api/instagram-profile/${searchUsername}`
@@ -228,6 +232,8 @@ const InstagramSearch = ({ initialSearch = true }) => {
         } catch (err) {
             setError('Error fetching profile data');
             console.error(err);
+        } finally {
+            setIsSearching(false);
         }
     };
 
@@ -241,14 +247,22 @@ const InstagramSearch = ({ initialSearch = true }) => {
         return `http://localhost:3001/api/proxy-image?url=${encodeURIComponent(originalUrl)}`;
     };
 
+    const handleFirstImageLoad = () => {
+        setFirstImageLoaded(true);
+        setIsSearching(false);
+    };
+
     return (
         <div className={`instagram-search ${isDarkMode ? 'dark-mode' : 'light-mode'}`}>
             <div className="search-container">
                 <button 
                     className="search-button"
                     onClick={handleSearch}
+                    disabled={isSearching}
                 >
-                    Search
+                    {isSearching ? (
+                        <div className="spinner"></div>
+                    ) : 'Search'}
                 </button>
                 <input
                     type="text"
@@ -258,6 +272,7 @@ const InstagramSearch = ({ initialSearch = true }) => {
                     onChange={(e) => setUsername(e.target.value)}
                     onKeyPress={handleKeyPress}
                     maxLength={30}
+                    disabled={isSearching}
                 />
                 {profileData && (
                     <div 
@@ -290,6 +305,13 @@ const InstagramSearch = ({ initialSearch = true }) => {
             </div>
 
             {error && <div className="error-message">{error}</div>}
+
+            {isSearching && !firstImageLoaded && (
+                <div className="loading-overlay">
+                    <div className="spinner large"></div>
+                    <p>Loading profile data...</p>
+                </div>
+            )}
 
             {timelineMedia.length > 0 && (
                 <div className="timeline-media">
@@ -334,6 +356,7 @@ const InstagramSearch = ({ initialSearch = true }) => {
                                     autoPlay
                                     loop
                                     playsInline
+                                    onLoadedData={index === 0 ? handleFirstImageLoad : undefined}
                                     onError={(e) => {
                                         e.target.onerror = null;
                                         e.target.src = 'https://via.placeholder.com/800x800?text=Video+Error';
@@ -344,6 +367,7 @@ const InstagramSearch = ({ initialSearch = true }) => {
                                     src={getProxiedImageUrl(getCurrentMediaUrl().url)}
                                     alt={`Post ${currentImageIndex + 1}`}
                                     className="main-image"
+                                    onLoad={currentImageIndex === 0 ? handleFirstImageLoad : undefined}
                                     onError={(e) => {
                                         e.target.onerror = null;
                                         e.target.src = 'https://via.placeholder.com/800x800?text=No+Image';
